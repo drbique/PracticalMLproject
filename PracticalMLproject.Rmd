@@ -1,0 +1,90 @@
+---
+title: "Practical ML Project"
+author: "Stephen Bique"
+date: "1/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Executive Summary
+The goal of this project is to predict the manner in which participants exercised.
+This is given by the "classe" variable in the training set, a factor variable with 5 levels. Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes. Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions:
+* exactly according to the specification (Class A)
+* throwing the elbows to the front (Class B)
+* lifting the dumbbell only halfway (Class C)
+* lowering the dumbbell only halfway (Class D)
+* throwing the hips to the front (Class E)
+We remove the blank, near zero and uninteresting variables that do not consist of useful measurements.  We use 5-fold cross validation when applying the random forest algorithm. The estimated accuracy of the decision tree model and the estimated out of sample error is approximately 49.7% and 50.3%, respectively. The estimated accuracy of the random forest model and the estimated out of sample error is approximately 99.9% and .13%, respectively. Thus, based on the these results, the random forest model performs better. The prediction model is used to predict 20 different test cases. For more details, refer to Appendix 1.  
+
+## Initialization
+```{r, message=FALSE}
+library(caret);library(randomForest);library(rpart);library(rpart.plot);
+library(lattice);library(corrplot);library(rattle);library(ggplot2)
+set.seed(666)
+```
+## Data Processing and Cleaning
+```{r train test valid, message=FALSE}
+
+raw_ <- read.csv(url(
+  "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"),   
+  na.strings=c("","NA"))
+raw <- raw_[,colSums(is.na(raw_)) == 0]
+
+validation_ <- read.csv(url(
+  "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"), 
+  na.strings=c("","NA"))
+validation  <- validation_[,colSums(is.na(validation_)) == 0]
+
+rm <- nearZeroVar(raw, saveMetrics=TRUE)$nzv | grepl("timestamp|user_name|^X", names(raw))
+
+training <- raw[, !rm]; 
+training$classe <- factor(training$classe)
+
+valid <- validation[, !rm]; 
+
+part <- createDataPartition(training$classe, p=0.6, list=FALSE)
+train <- training[part, ]
+test <- training[-part, ]
+
+dim(train); dim(test); head(train)
+rm(raw,raw_,validation,validation_,rm,training,part)
+```
+The cleaned train, test, and valid sets consist of 54 variables with 11776, 7846, and 20 observations, respectively.
+
+## Decision Tree Model
+```{r}
+# tree <- rpart(classe ~ ., data=train, method="class")
+# rpart.plot(tree, main="Decision Tree for Variable classe", extra=102, faclen=8)
+
+
+trctrl <- trainControl(method = "cv", n = 5)
+
+treeDT <- train(classe ~ ., data = train, method = "rpart", trControl = trctrl)
+
+predT <- predict(treeDT, test)
+confusionMatrix(data=predT, reference=test$classe)
+```
+## Random Forest Model
+We apply 5-fold cross validation when applying the algorithm.
+```{r}
+rf <- train(classe ~ ., data=train, method = "rf", trControl = trctrl)
+
+predRF <- predict(rf, test)
+
+confusionMatrix(data=predRF, reference=test$classe)
+```
+
+## Appendix 1
+### Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: [http://groupware.les.inf.puc-rio.br/har](http://groupware.les.inf.puc-rio.br/har)  
+(see the section on the Weight Lifting Exercise Dataset). 
+
+### Data 
+The training data for this project are available here:
+[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv)   
+The test data are available here:
+[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)  
+The data for this project come from this source: 
+[http://groupware.les.inf.puc-rio.br/har](http://groupware.les.inf.puc-rio.br/har) 
